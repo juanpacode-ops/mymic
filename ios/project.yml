@@ -1,0 +1,29 @@
+name: MyMic
+options:
+  bundleIdPrefix: uy.admedia
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  MyMic:
+    type: application
+    platform: iOS
+    sources:
+      - path: MyMic
+        excludes:
+          - "web/**"
+      - path: MyMic/web
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: uy.admedia.mymic
+        PRODUCT_NAME: MyMic
+        INFOPLIST_FILE: MyMic/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""
+        ENABLE_BITCODE: NO

@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="My Mic">
+<meta name="theme-color" content="#0b0c10">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>My Mic</title>
+<style>
+  :root{
+    --bg:#0b0c10; --card:#15171d; --card2:#1c1f27; --line:#262a33;
+    --txt:#f4f5f7; --mut:#8a909c; --green:#22c55e; --green2:#16a34a; --blue:#3b82f6; --red:#f87171; --amber:#fbbf24;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font:16px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;overscroll-behavior:none;overflow:hidden}
+  body{display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 12px) 18px calc(env(safe-area-inset-bottom) + 16px)}
+  header{display:flex;align-items:center;justify-content:space-between;height:40px}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:19px;letter-spacing:-.2px}
+  .brand img{width:26px;height:26px;border-radius:7px}
+  .pill{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--mut);background:var(--card);padding:6px 11px;border-radius:99px;border:1px solid var(--line)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--mut)}
+  .pill.ok .dot{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .pill.warn .dot{background:var(--amber)}
+  .pill.ok{color:var(--txt)}
+
+  .seg{margin-top:18px;display:grid;grid-template-columns:repeat(3,1fr);background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;position:relative}
+  .seg button{position:relative;z-index:1;border:0;background:none;color:var(--mut);font:600 14px/1 inherit;font-family:inherit;padding:11px 0;border-radius:10px;transition:color .2s}
+  .seg button.sel{color:var(--txt)}
+  .seg .thumb{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px)/3);background:var(--card2);border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.4);transition:transform .25s cubic-bezier(.3,.7,.3,1)}
+
+  main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;min-height:0}
+  .mic-wrap{position:relative;width:min(64vw,250px);aspect-ratio:1}
+  .ring{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(34,197,94,.35),rgba(34,197,94,0) 70%);transform:scale(var(--lvl,1));opacity:0;transition:opacity .2s}
+  .live .ring{opacity:1}
+  #mic{position:absolute;inset:14%;border-radius:50%;border:0;background:var(--card2);box-shadow:inset 0 0 0 1px var(--line),0 10px 30px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;transition:transform .12s,background .2s;touch-action:none}
+  #mic svg{width:34%;height:34%;fill:none;stroke:var(--mut);stroke-width:2;stroke-linecap:round;transition:stroke .2s}
+  .live #mic{background:linear-gradient(160deg,var(--green),var(--green2));transform:scale(.97)}
+  .live #mic svg{stroke:#04210f}
+  .muted #mic svg .slash{display:block}
+  #mic svg .slash{display:none;stroke:var(--red)}
+  .hint{text-align:center;min-height:44px}
+  .hint b{display:block;font-size:17px;font-weight:600}
+  .hint span{font-size:14px;color:var(--mut)}
+  .hint.err span{color:var(--red)}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:12px}
+  .row{display:flex;align-items:center;gap:12px}
+  .row .ic{width:36px;height:36px;border-radius:10px;background:var(--card2);display:flex;align-items:center;justify-content:center}
+  .row .ic svg{width:20px;height:20px;fill:none;stroke:var(--txt);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .row .t{flex:1}
+  .row .t b{display:block;font-size:15px;font-weight:600}
+  .row .t span{font-size:12.5px;color:var(--mut)}
+  .sw{width:51px;height:31px;border-radius:99px;background:#3a3f4b;position:relative;border:0;transition:background .2s;flex:none}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.3);transition:transform .22s cubic-bezier(.3,.7,.3,1)}
+  .sw.on{background:var(--green)}
+  .sw.on::after{transform:translateX(20px)}
+  .flip{border:0;background:var(--card2);width:36px;height:36px;border-radius:10px;display:none;align-items:center;justify-content:center}
+  .flip svg{width:19px;height:19px;fill:none;stroke:var(--txt);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .camon .flip{display:flex}
+  .pv{display:none;position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;background:#000;overflow:hidden}
+  .camon .pv{display:block}
+  .pv video,.pv img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  .pv img{display:none}
+  .hasprev .pv img{display:block}
+  .hasprev .pv video{opacity:.01}
+  .pv .tag{position:absolute;left:8px;top:8px;font-size:11px;font-weight:600;background:rgba(0,0,0,.55);color:#fff;padding:3px 8px;border-radius:99px}
+
+  .gear{border:0;background:var(--card2);width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center}
+  .gear svg{width:19px;height:19px;fill:none;stroke:var(--txt);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  #sheetBg{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .25s;z-index:5}
+  #sheet{position:fixed;left:0;right:0;bottom:0;max-height:86vh;overflow-y:auto;background:var(--card);border-top:1px solid var(--line);border-radius:22px 22px 0 0;
+         padding:10px 18px calc(env(safe-area-inset-bottom) + 20px);transform:translateY(105%);transition:transform .3s cubic-bezier(.3,.7,.3,1);z-index:6;-webkit-overflow-scrolling:touch}
+  .open #sheetBg{opacity:1;pointer-events:auto}
+  .open #sheet{transform:none}
+  #sheet .grab{width:38px;height:5px;border-radius:9px;background:#3a3f4b;margin:0 auto 10px}
+  #sheet h3{margin:4px 0 12px;font-size:18px}
+  .shead{display:flex;align-items:center;justify-content:space-between}
+  .shead button{border:0;background:none;color:var(--green);font:700 16px inherit;font-family:inherit;padding:6px 2px}
+  .set{padding:13px 0;border-bottom:1px solid var(--line)}
+  .set:last-child{border-bottom:0}
+  .set .lbl{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .set .lbl b{font-size:15px;font-weight:600}
+  .set .lbl span{font-size:13px;color:var(--mut)}
+  .set small{display:block;color:var(--mut);font-size:12.5px;margin-top:3px}
+  .chips{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;margin-top:10px}
+  .chips button{border:1px solid var(--line);background:var(--card2);color:var(--mut);font:600 13.5px inherit;font-family:inherit;padding:10px 4px;border-radius:10px}
+  .chips button.sel{background:var(--green);border-color:var(--green);color:#04210f}
+  input[type=range]{width:100%;margin-top:10px;accent-color:var(--green)}
+  .pick{margin-top:10px;display:flex;gap:10px;align-items:center}
+  .pick button{border:0;background:var(--card2);color:var(--txt);font:600 13.5px inherit;font-family:inherit;padding:10px 14px;border-radius:10px}
+  .pick span{font-size:12.5px;color:var(--mut)}
+  .reset{margin-top:14px;width:100%;border:1px solid var(--line);background:none;color:var(--mut);font:600 14px inherit;font-family:inherit;padding:12px;border-radius:12px}
+  .hbtn{border:0;background:var(--card);border:1px solid var(--line);width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-left:8px}
+  .hbtn svg{width:18px;height:18px;fill:none;stroke:var(--mut);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .hright{display:flex;align-items:center}
+  #hide{position:fixed;inset:0;background:#000;z-index:20;display:none;align-items:flex-end;justify-content:center;padding-bottom:calc(env(safe-area-inset-bottom) + 28px)}
+  #hide span{color:#1a1a1a;font-size:13px}
+  .hidden-mode #hide{display:flex}
+  .lockhint{display:none;align-items:center;gap:8px;justify-content:center;font-size:12.5px;color:var(--mut);margin-top:-8px}
+  .lockhint svg{width:14px;height:14px;fill:none;stroke:var(--green);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .native .lockhint.show{display:flex}
+  #search{position:fixed;inset:0;background:var(--bg);z-index:10;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center}
+  .searching #search{display:flex}
+  #search img{width:76px;height:76px;border-radius:20px}
+  #search h2{margin:6px 0 0;font-size:21px}
+  #search p{margin:0;color:var(--mut);font-size:14.5px;max-width:290px}
+  .spin{width:26px;height:26px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--green);animation:sp 0.9s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #manual{display:none;flex-direction:column;gap:10px;width:100%;max-width:300px;margin-top:8px}
+  .notfound #manual{display:flex}
+  .notfound .spin{display:none}
+  #manual input{background:var(--card);border:1px solid var(--line);color:var(--txt);font:16px inherit;font-family:inherit;padding:13px 14px;border-radius:12px;text-align:center;-webkit-user-select:text;user-select:text}
+  #manual button{border:0;background:var(--green);color:#04210f;font:700 16px inherit;font-family:inherit;padding:14px;border-radius:12px}
+  #start{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:9;padding:24px;text-align:center}
+  #start img{width:88px;height:88px;border-radius:22px;box-shadow:0 12px 40px rgba(34,197,94,.3)}
+  #start h1{margin:4px 0 0;font-size:26px}
+  #start p{margin:0;color:var(--mut);font-size:15px;max-width:280px}
+  #start button{margin-top:10px;border:0;background:var(--green);color:#04210f;font:700 17px inherit;font-family:inherit;padding:16px 44px;border-radius:14px}
+  #start .err{color:var(--red);font-size:14px}
+</style>
+</head>
+<body>
+  <div id="hide"><span>Pantalla oculta · tocá dos veces para volver</span></div>
+  <div id="search">
+    <img src="icon-512.png" alt="">
+    <h2 id="searchTitle">Buscando tu PC…</h2>
+    <p id="searchSub">Asegurate de que My Mic esté abierto en la PC y que los dos estén en el mismo Wi-Fi.</p>
+    <div class="spin"></div>
+    <div id="manual"><input id="manualAddr" inputmode="url" placeholder="192.168.1.16" autocomplete="off"><button id="manualGo">Conectar</button></div>
+  </div>
+  <div id="start">
+    <img src="icon-512.png" alt="">
+    <h1>My Mic</h1>
+    <p>El micrófono y la cámara de tu PC, desde el iPhone.</p>
+    <button id="go">Empezar</button>
+    <div class="err" id="startErr"></div>
+  </div>
+
+  <header>
+    <div class="brand"><img src="icon-180.png" alt="">My Mic</div>
+    <div class="hright">
+      <div class="pill" id="pill"><span class="dot"></span><span id="pillTxt">Conectando…</span></div>
+      <button class="hbtn" id="hideBtn" aria-label="Pantalla oculta"><svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.4 5.2A9.7 9.7 0 0 1 12 5c5 0 9 4.5 10 7-.4 1-1.2 2.3-2.4 3.5M6.2 6.3C4.3 7.6 2.8 9.6 2 12c1 2.5 5 7 10 7 1.7 0 3.2-.5 4.6-1.2"/></svg></button>
+    </div>
+  </header>
+
+  <div class="seg" id="seg">
+    <div class="thumb" id="thumb"></div>
+    <button data-m="walkie">Walkie</button>
+    <button data-m="auto">Automático</button>
+    <button data-m="always">Siempre</button>
+  </div>
+
+  <main id="main">
+    <div class="mic-wrap" id="wrap">
+      <div class="ring"></div>
+      <button id="mic" aria-label="Micrófono">
+        <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/><path class="slash" d="M4 4l16 16"/></svg>
+      </button>
+    </div>
+    <div class="hint" id="hint"><b></b><span></span></div>
+    <div class="lockhint" id="lockHint"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Podés bloquear el iPhone: el micrófono sigue funcionando</div>
+  </main>
+
+  <div class="card" id="camCard">
+    <div class="row">
+      <div class="ic"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="13" height="12" rx="2.5"/><path d="M15.5 10.5l6-3.5v10l-6-3.5z"/></svg></div>
+      <div class="t"><b>Cámara</b><span id="camTxt">Aparece en la PC como "My Mic Cam"</span></div>
+      <button class="flip" id="flip" aria-label="Girar cámara"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></svg></button>
+      <button class="gear" id="camSet" aria-label="Ajustes de cámara"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+      <button class="sw" id="camSw" aria-label="Cámara"></button>
+    </div>
+    <div class="pv"><video id="preview" playsinline muted autoplay></video><img id="fxPrev" alt=""><span class="tag" id="pvTag">Tu cámara</span></div>
+  </div>
+
+  <div id="sheetBg"></div>
+  <div id="sheet">
+    <div class="grab"></div>
+    <div class="shead"><h3>Ajustes de cámara</h3><button id="fxDone">Listo</button></div>
+    <div class="set">
+      <div class="lbl"><div><b>Espejo</b><small>Voltea la imagen si en la llamada te ves al revés</small></div><button class="sw" id="fxMirror"></button></div>
+    </div>
+    <div class="set">
+      <div class="lbl"><b>Fondo</b></div>
+      <div class="chips" id="fxBg"><button data-v="none">Normal</button><button data-v="blur">Difuminado</button><button data-v="image">Imagen</button></div>
+      <div class="pick"><button id="fxBgPick">Elegir imagen de fondo</button><span id="fxBgInfo"></span></div>
+    </div>
+    <div class="set">
+      <div class="lbl"><div><b>Recorte</b><small>Preciso: bordes mucho mejores, usa un poco más la PC</small></div></div>
+      <div class="chips" id="fxSeg"><button data-v="fast">Rápido</button><button data-v="precise">Preciso</button></div>
+    </div>
+    <div class="set">
+      <div class="lbl"><b>Zoom</b><span id="fxZoomV"></span></div>
+      <input type="range" id="fxZoom" min="1" max="2" step="0.05">
+    </div>
+    <div class="set">
+      <div class="lbl"><b>Brillo</b><span id="fxBrightV"></span></div>
+      <input type="range" id="fxBright" min="-50" max="50" step="1">
+    </div>
+    <div class="set">
+      <div class="lbl"><b>Contraste</b><span id="fxContrastV"></span></div>
+      <input type="range" id="fxContrast" min="-50" max="50" step="1">
+    </div>
+    <div class="set">
+      <div class="lbl"><div><b>Calidad</b><small>Baja gasta menos batería y Wi-Fi</small></div></div>
+      <div class="chips" id="fxQuality"><button data-v="low">Baja</button><button data-v="medium">Media</button><button data-v="high">Alta</button></div>
+    </div>
+    <div class="set">
+      <div class="lbl"><div><b>Imagen al apagar la cámara</b><small>Lo que ven los demás cuando la cámara está apagada</small></div><button class="sw" id="fxPriv"></button></div>
+      <div class="pick"><button id="fxPrivPick">Elegir imagen</button><span id="fxPrivInfo"></span></div>
+    </div>
+    <button class="reset" id="fxReset">Restablecer ajustes</button>
+  </div>
+  <input type="file" id="filePick" accept="image/*" hidden>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+                set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+
+// ---------------- app nativa (WKWebView): el audio, la cámara y la conexión los hace Swift
+const NATIVE = !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mymic);
+const nat = (o) => { try { window.webkit.messageHandlers.mymic.postMessage(o); } catch {} };
+if (NATIVE) document.body.classList.add("native");
+function toB64(u8) { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+class NativeSocket {                       // imita un WebSocket; por dentro lo maneja Swift
+  constructor() { this.readyState = 0; this.bufferedAmount = 0; }
+  send(d) { if (typeof d === "string") nat({ t: "ws", d }); else nat({ t: "wsb", b64: toB64(d instanceof Uint8Array ? d : new Uint8Array(d)) }); }
+  close() {}
+}
+window.onNative = (m) => {
+  switch (m.t) {
+    case "open": if (ws) { ws.readyState = 1; ws.onopen && ws.onopen(); } setSearch(null); break;
+    case "close": if (ws) { ws.readyState = 3; ws.onclose && ws.onclose(); } break;
+    case "msg": if (ws && ws.onmessage) ws.onmessage({ data: m.d }); break;
+    case "prev": showPrev("data:image/jpeg;base64," + m.b64); break;
+    case "lvl": $("wrap").style.setProperty("--lvl", (1 + Math.min(m.v * 5, 0.45)).toFixed(3)); break;
+    case "sending": sending = !!m.on; if (!sending) $("wrap").style.setProperty("--lvl", 1); render(); break;
+    case "conn": setSearch(m.state, m); break;
+    case "camerr": videoErr = m.msg || ""; if (m.off) { camOn = false; } render(); break;
+  }
+};
+function setSearch(state, m) {
+  const b = document.body;
+  b.classList.toggle("searching", state === "searching" || state === "notfound");
+  b.classList.toggle("notfound", state === "notfound");
+  if (state === "searching") { $("searchTitle").textContent = "Buscando tu PC…"; $("searchSub").textContent = "Asegurate de que My Mic esté abierto en la PC y que los dos estén en el mismo Wi-Fi."; }
+  if (state === "notfound") { $("searchTitle").textContent = "No encontré tu PC"; $("searchSub").textContent = (m && m.msg) || "Escribí la dirección que aparece en el panel de My Mic en la PC."; }
+}
+
+let ws, ctx, node, micStream, camStream, wakeLock;
+let mode = store.get("mode", "walkie");
+let pressed = false, muted = false, sending = false, pcMic = false, pcMicApp = "";
+let camOn = false, facing = store.get("facing", "user");
+let offTimer = null, frameTimer = null, sendingFrame = false, started = false, audioErr = "", videoErr = "";
+let pcName = "";
+let fx = { mirror: false, bg: "none", zoom: 1, bright: 0, contrast: 0, quality: "medium", privacy: false, seg: "fast", has_bg: false, has_priv: false };
+const QUALITY = { low: [640, 0.6, 12], medium: [960, 0.7, 18], high: [1280, 0.8, 24] };
+
+// ---------------- UI
+const MODES = ["walkie", "auto", "always"];
+function renderMode() {
+  const i = MODES.indexOf(mode);
+  $("thumb").style.transform = `translateX(${i * 100}%)`;
+  document.querySelectorAll("#seg button").forEach((b) => b.classList.toggle("sel", b.dataset.m === mode));
+}
+function render() {
+  const online = ws && ws.readyState === 1;
+  const pill = $("pill");
+  pill.className = "pill " + (online ? (audioErr ? "warn" : "ok") : "");
+  $("pillTxt").textContent = online ? (pcName || "PC conectada") : "Buscando la PC…";
+
+  const wrap = $("wrap");
+  wrap.classList.toggle("live", sending);
+  wrap.classList.toggle("muted", muted && mode !== "walkie");
+
+  let b = "", s = "", err = false;
+  if (!online) { b = "Sin conexión"; s = "Revisá que la PC esté prendida y en el mismo Wi-Fi"; }
+  else if (audioErr) { b = "Falta algo en la PC"; s = audioErr; err = true; }
+  else if (mode === "walkie") { b = sending ? "Hablando…" : "Mantené para hablar"; s = sending ? "Soltá para cortar" : "Solo transmite mientras apretás"; }
+  else if (mode === "auto") {
+    if (muted) { b = "Silenciado"; s = "Tocá para reactivar"; }
+    else if (pcMic) { b = "Transmitiendo"; s = (pcMicApp ? pcMicApp + " está usando el mic" : "Una app está usando el mic") + " · tocá para silenciar"; }
+    else { b = "En espera"; s = "Se activa solo cuando una app de la PC usa el mic"; }
+  } else { b = muted ? "Silenciado" : "Transmitiendo"; s = muted ? "Tocá para reactivar" : "Tocá para silenciar"; }
+  $("lockHint").classList.toggle("show", online && !audioErr && mode !== "walkie");
+  const h = $("hint");
+  h.className = "hint" + (err ? " err" : "");
+  h.querySelector("b").textContent = b;
+  h.querySelector("span").textContent = s;
+
+  $("camCard").classList.toggle("camon", camOn);
+  $("camSw").classList.toggle("on", camOn);
+  $("camTxt").textContent = videoErr || (camOn ? "Transmitiendo a la PC" : 'Aparece en la PC como "My Mic Cam"');
+}
+
+// ---------------- envío de audio
+function shouldSend() {
+  if (!ws || ws.readyState !== 1 || audioErr) return false;
+  if (mode === "walkie") return pressed;
+  if (mode === "auto") return pcMic && !muted;
+  return !muted;
+}
+function applySend() {
+  if (NATIVE) { nat({ t: "state", mode, muted, pressed }); render(); return; }
+  const want = shouldSend();
+  if (want) {
+    clearTimeout(offTimer); offTimer = null;
+    if (!sending) {
+      sending = true;
+      node && node.port.postMessage({ on: true });
+      wsSend({ type: "talk", on: true });
+    }
+  } else if (sending && !offTimer) {
+    offTimer = setTimeout(() => {           // un poquito de cola para no cortar la última sílaba
+      offTimer = null;
+      if (shouldSend()) return;
+      sending = false;
+      node && node.port.postMessage({ on: false });
+      wsSend({ type: "talk", on: false });
+      $("wrap").style.setProperty("--lvl", 1);
+      render();
+    }, 220);
+  }
+  render();
+}
+function wsSend(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+
+// ---------------- conexión
+// canal SOLO para la voz: así nunca espera detrás de un cuadro de video
+let wsa = null, pingTimer = null;
+function openWSA() {
+  if (NATIVE) return;
+  if (wsa && wsa.readyState <= 1) return;
+  wsa = new WebSocket(`wss://${location.host}/wsa`);
+  wsa.binaryType = "arraybuffer";
+  wsa.onmessage = (e) => {
+    try {
+      const m = JSON.parse(e.data);
+      if (m.type === "pong") wsSend({ type: "rtt", ms: Math.round(performance.now() - m.t) });
+    } catch {}
+  };
+  wsa.onclose = () => { setTimeout(() => { if (document.visibilityState === "visible" && started) openWSA(); }, 1000); };
+  clearInterval(pingTimer);
+  pingTimer = setInterval(() => { if (wsa && wsa.readyState === 1) wsa.send(JSON.stringify({ type: "ping", t: performance.now() })); }, 1000);
+}
+function openWS() {
+  ws = NATIVE ? new NativeSocket() : new WebSocket(`wss://${location.host}/ws`);
+  ws.binaryType = "arraybuffer";
+  ws.onopen = () => {
+    if (!NATIVE) wsSend({ type: "hello", rate: ctx.sampleRate, mode });   // en nativo el hello lo manda Swift
+    if (camOn) { wsSend({ type: "video", on: true }); wsSend({ type: "preview", on: true }); }
+    sending = false; applySend();
+  };
+  ws.onmessage = (e) => {
+    if (typeof e.data !== "string") { onBinary(e.data); return; }
+    let m; try { m = JSON.parse(e.data); } catch { return; }
+    if (m.type === "mode" && MODES.includes(m.mode)) { mode = m.mode; store.set("mode", mode); pressed = false; muted = false; renderMode(); }
+    if (m.type === "camreq") { if (m.on && !camOn) camStart(); else if (!m.on && camOn) camStop(); }
+    if (m.type === "hello") { pcName = m.pc || ""; pcMic = !!m.pc_mic; pcMicApp = m.pc_mic_app || ""; }
+    if (m.type === "pcmic") { pcMic = !!m.on; pcMicApp = m.app || ""; }
+    if (m.type === "camcfg") { Object.assign(fx, m); renderFx(); if (NATIVE && camOn) nat({ t: "camq", quality: fx.quality }); }
+    if (m.type === "status") {
+      if ("audio" in m) audioErr = m.audio === "ok" ? "" : m.audio;
+      if ("video" in m) videoErr = m.video === "ok" ? "" : m.video;
+    }
+    applySend();
+  };
+  ws.onclose = () => {
+    sending = false; render();
+    if (!NATIVE) setTimeout(() => { if (document.visibilityState === "visible") openWS(); }, 1500);
+  };
+}
+
+async function start() {
+  $("startErr").textContent = "";
+  if (NATIVE) {
+    started = true;
+    $("start").style.display = "none";
+    openWS();
+    setSearch("searching");
+    nat({ t: "start", mode, muted });
+    return;
+  }
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+    await ctx.resume();
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }
+    });
+    await ctx.audioWorklet.addModule("worklet.js?v=3");
+    node = new AudioWorkletNode(ctx, "capture");
+    node.port.onmessage = (e) => {
+      const { pcm, lvl } = e.data;
+      $("wrap").style.setProperty("--lvl", (1 + Math.min(lvl * 5, 0.45)).toFixed(3));
+      const ch = (wsa && wsa.readyState === 1) ? wsa : ws;   // si el canal de audio no está, usa el principal
+      if (!ch || ch.readyState !== 1 || ch.bufferedAmount > 4096) return;   // si se atrasa, descarta en vez de acumular
+      const b = new Uint8Array(pcm), out = new Uint8Array(b.length + 1);
+      out[0] = 1; out.set(b, 1); ch.send(out);
+    };
+    const zero = ctx.createGain(); zero.gain.value = 0;
+    ctx.createMediaStreamSource(micStream).connect(node).connect(zero).connect(ctx.destination);
+    started = true;
+    $("start").style.display = "none";
+    openWS();
+    openWSA();
+    keepAwake();
+  } catch (err) {
+    $("startErr").textContent = "No pude usar el micrófono. Permitilo en Ajustes > My Mic. (" + (err.message || err) + ")";
+  }
+}
+
+// ---------------- botón del mic
+const mic = $("mic");
+mic.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  if (mode === "walkie") { mic.setPointerCapture(e.pointerId); pressed = true; }
+  else muted = !muted;
+  applySend();
+});
+["pointerup", "pointercancel"].forEach((ev) => mic.addEventListener(ev, () => { if (pressed) { pressed = false; applySend(); } }));
+mic.addEventListener("contextmenu", (e) => e.preventDefault());
+
+document.querySelectorAll("#seg button").forEach((b) => b.onclick = () => {
+  mode = b.dataset.m; store.set("mode", mode); pressed = false; muted = false;
+  wsSend({ type: "mode", mode });
+  renderMode(); applySend();
+});
+
+// ---------------- cámara
+async function camStart() {
+  videoErr = "";
+  if (NATIVE) {
+    camOn = true;
+    nat({ t: "cam", on: true, facing, quality: fx.quality });
+    wsSend({ type: "video", on: true });
+    wsSend({ type: "preview", on: true });
+    render();
+    return;
+  }
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 20, max: 24 } }
+    });
+    const v = $("preview");
+    v.srcObject = camStream;
+    v.style.transform = "";
+    await v.play();
+    camOn = true;
+    wsSend({ type: "video", on: true });
+    wsSend({ type: "preview", on: true });
+    loopFrames();
+  } catch (err) { videoErr = "No pude usar la cámara"; }
+  render();
+}
+function camStop(keep) {
+  clearTimeout(frameTimer);
+  if (NATIVE && !keep) nat({ t: "cam", on: false });
+  if (camStream) camStream.getTracks().forEach((t) => t.stop());
+  camStream = null;
+  if (!keep) {
+    camOn = false; wsSend({ type: "video", on: false }); wsSend({ type: "preview", on: false });
+    document.body.classList.remove("hasprev");
+  }
+  render();
+}
+$("camSw").onclick = () => (camOn ? camStop() : camStart());
+$("flip").onclick = async () => {
+  facing = facing === "user" ? "environment" : "user"; store.set("facing", facing);
+  if (NATIVE) { nat({ t: "cam", on: true, facing, quality: fx.quality }); return; }
+  camStop(true); await camStart();
+};
+
+const canvas = document.createElement("canvas"), c2d = canvas.getContext("2d");
+function loopFrames() {
+  clearTimeout(frameTimer);
+  if (!camOn) return;
+  const [qMax, qJpeg, qFps] = QUALITY[fx.quality] || QUALITY.medium;
+  frameTimer = setTimeout(loopFrames, 1000 / qFps);
+  const v = $("preview");
+  if (sendingFrame || !v.videoWidth || !ws || ws.readyState !== 1 || ws.bufferedAmount > 40000) return;
+  const k = Math.min(1, qMax / Math.max(v.videoWidth, v.videoHeight));
+  canvas.width = Math.round(v.videoWidth * k); canvas.height = Math.round(v.videoHeight * k);
+  c2d.drawImage(v, 0, 0, canvas.width, canvas.height);
+  sendingFrame = true;
+  canvas.toBlob(async (blob) => {
+    try {
+      if (blob && ws.readyState === 1) {
+        const j = new Uint8Array(await blob.arrayBuffer()), out = new Uint8Array(j.length + 1);
+        out[0] = 2; out.set(j, 1); ws.send(out);
+      }
+    } finally { sendingFrame = false; }
+  }, "image/jpeg", qJpeg);
+}
+
+// ---------------- pantalla y reconexión
+async function keepAwake() { try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch {} }
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") { pressed = false; return; }
+  if (!started || NATIVE) return;
+  keepAwake();
+  if (ctx.state !== "running") ctx.resume();
+  if (!ws || ws.readyState > 1) openWS();
+  openWSA();
+  if (camOn && (!camStream || camStream.getVideoTracks().every((t) => t.readyState === "ended"))) camStart();
+});
+
+// ---------------- vista previa con efectos (lo que ve la otra persona)
+let prevUrl = null, prevTimer = null;
+function onBinary(buf) {
+  const u8 = new Uint8Array(buf);
+  if (u8[0] !== 9 || !camOn) return;
+  const url = URL.createObjectURL(new Blob([u8.subarray(1)], { type: "image/jpeg" }));
+  const img = $("fxPrev");
+  img.onload = () => { if (prevUrl) URL.revokeObjectURL(prevUrl); prevUrl = url; };
+  showPrev(url);
+}
+function showPrev(url) {
+  if (!camOn) return;
+  $("fxPrev").src = url;
+  document.body.classList.add("hasprev");
+  $("pvTag").textContent = "Así te ven";
+  clearTimeout(prevTimer);
+  prevTimer = setTimeout(() => { document.body.classList.remove("hasprev"); $("pvTag").textContent = "Tu cámara"; }, 1500);
+}
+
+// ---------------- ajustes de cámara
+function renderFx() {
+  $("fxMirror").classList.toggle("on", !!fx.mirror);
+  $("fxPriv").classList.toggle("on", !!fx.privacy);
+  document.querySelectorAll("#fxBg button").forEach((b) => b.classList.toggle("sel", b.dataset.v === fx.bg));
+  document.querySelectorAll("#fxQuality button").forEach((b) => b.classList.toggle("sel", b.dataset.v === fx.quality));
+  document.querySelectorAll("#fxSeg button").forEach((b) => b.classList.toggle("sel", b.dataset.v === fx.seg));
+  $("fxZoom").value = fx.zoom; $("fxZoomV").textContent = Number(fx.zoom).toFixed(2) + "x";
+  $("fxBright").value = fx.bright; $("fxBrightV").textContent = (fx.bright > 0 ? "+" : "") + fx.bright;
+  $("fxContrast").value = fx.contrast; $("fxContrastV").textContent = (fx.contrast > 0 ? "+" : "") + fx.contrast;
+  $("fxBgInfo").textContent = fx.has_bg ? "✓ Imagen cargada" : "";
+  $("fxPrivInfo").textContent = fx.has_priv ? "✓ Imagen cargada" : "";
+}
+function sendFx(patch) { Object.assign(fx, patch); renderFx(); wsSend({ type: "camcfg", ...patch }); }
+$("camSet").onclick = () => document.body.classList.add("open");
+$("sheetBg").onclick = $("fxDone").onclick = () => document.body.classList.remove("open");
+$("fxMirror").onclick = () => sendFx({ mirror: !fx.mirror });
+$("fxPriv").onclick = () => { if (!fx.has_priv && !fx.privacy) return pickImage(4); sendFx({ privacy: !fx.privacy }); };
+document.querySelectorAll("#fxBg button").forEach((b) => b.onclick = () => {
+  if (b.dataset.v === "image" && !fx.has_bg) return pickImage(3);
+  sendFx({ bg: b.dataset.v });
+});
+document.querySelectorAll("#fxQuality button").forEach((b) => b.onclick = () => sendFx({ quality: b.dataset.v }));
+document.querySelectorAll("#fxSeg button").forEach((b) => b.onclick = () => sendFx({ seg: b.dataset.v }));
+let rangeTimer = null;
+[["fxZoom", "zoom", parseFloat], ["fxBright", "bright", (x) => parseInt(x, 10)], ["fxContrast", "contrast", (x) => parseInt(x, 10)]]
+  .forEach(([id, key, conv]) => $(id).addEventListener("input", (e) => {
+    fx[key] = conv(e.target.value); renderFx();
+    clearTimeout(rangeTimer); rangeTimer = setTimeout(() => wsSend({ type: "camcfg", [key]: fx[key] }), 120);
+  }));
+$("fxReset").onclick = () => sendFx({ mirror: false, bg: "none", zoom: 1, bright: 0, contrast: 0, quality: "medium", privacy: false, seg: "fast" });
+$("fxBgPick").onclick = () => pickImage(3);
+$("fxPrivPick").onclick = () => pickImage(4);
+
+let pickKind = 3;
+function pickImage(kind) { pickKind = kind; $("filePick").value = ""; $("filePick").click(); }
+$("filePick").onchange = async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (!f || !ws || ws.readyState !== 1) return;
+  const info = pickKind === 3 ? $("fxBgInfo") : $("fxPrivInfo");
+  info.textContent = "Enviando…";
+  try {
+    const bmp = await createImageBitmap(f);
+    const k = Math.min(1, 1920 / Math.max(bmp.width, bmp.height));
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+    cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+    const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.88));
+    const j = new Uint8Array(await blob.arrayBuffer()), out = new Uint8Array(j.length + 1);
+    out[0] = pickKind; out.set(j, 1); ws.send(out);
+  } catch { info.textContent = "No pude leer esa imagen"; }
+};
+
+// ---------------- pantalla oculta (parece apagada, sigue transmitiendo)
+let lastTap = 0;
+$("hideBtn").onclick = () => { document.body.classList.add("hidden-mode"); if (NATIVE) nat({ t: "dim", on: true }); };
+$("hide").addEventListener("pointerdown", () => {
+  const now = Date.now();
+  if (now - lastTap < 400) { document.body.classList.remove("hidden-mode"); if (NATIVE) nat({ t: "dim", on: false }); }
+  lastTap = now;
+});
+
+$("manualGo").onclick = () => {
+  const h = $("manualAddr").value.trim();
+  if (h) { setSearch("searching"); nat({ t: "manual", host: h }); }
+};
+$("go").onclick = start;
+renderMode(); render(); renderFx();
+if (NATIVE) start();     // en la app no hace falta tocar "Empezar"
+</script>
+</body>
+</html>
