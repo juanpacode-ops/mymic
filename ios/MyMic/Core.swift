@@ -24,6 +24,7 @@ final class Core {
     private var started = false
     private var sending = false
     private var offWork: DispatchWorkItem?
+    private var micOffWork: DispatchWorkItem?
     private var connecting: PCInfo?
     private var notFoundWork: DispatchWorkItem?
     private var reconnectWork: DispatchWorkItem?
@@ -47,11 +48,11 @@ final class Core {
             self?.q.async { self?.audioChunk(data, level) }
         }
         audio.onError = { [weak self] msg in
-            self?.q.async { self?.page(["t": "msg", "d": "{\"type\":\"status\",\"audio\":\"\(msg)\"}"]) }
+            self?.q.async { self?.page(["t": "notice", "msg": msg]) }
         }
-        cam.onFrame = { [weak self] jpeg in
+        cam.onFrame = { [weak self] kind, jpeg in
             guard let self = self else { return }
-            var d = Data([2]); d.append(jpeg)
+            var d = Data([kind]); d.append(jpeg)
             self.link.sendVideo(d)
         }
         cam.canSend = { [weak self] in self?.link.videoFree ?? false }
@@ -214,11 +215,29 @@ final class Core {
             if let a = m["audio"] as? String { audioOK = (a == "ok") }
         case "mode":
             if let md = m["mode"] as? String { mode = md; pressed = false; muted = false }
+        case "camcfg":
+            applyCamCfg(m)
         default: break
         }
         lastMsgs[type] = s
         update()
         page(["t": "msg", "d": s])
+    }
+
+    /// Recorte "iPhone ★": el fondo lo pone el iPhone; si es una imagen, se baja de la PC.
+    private var bgVersion = -1
+    private func applyCamCfg(_ m: [String: Any]) {
+        let bg = m["bg"] as? String ?? "none"
+        let phone = (m["seg"] as? String) == "iphone"
+        cam.setFx(bg: bg, phoneSeg: phone)
+        let v = (m["bg_v"] as? Int) ?? 0
+        guard phone, bg == "image", (m["has_bg"] as? Bool) == true, v != bgVersion,
+              let pc = connecting,
+              let url = URL(string: "http://\(PCInfo.urlHost(pc.host)):\(pc.http)/bg.jpg?v=\(v)") else { return }
+        bgVersion = v
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            if let data = data, !data.isEmpty { self?.cam.setBackground(data) }
+        }.resume()
     }
 
     private func receivedBinary(_ d: Data) {
@@ -231,6 +250,7 @@ final class Core {
         if dimmed { DispatchQueue.main.async { UIScreen.main.brightness = 0 } }
         if started && !connected { link.close(); connectFlow() }
         replay()
+        update()          // si iOS no dejó prender el mic en segundo plano, se reintenta ahora
     }
 
     /// Al volver a la app, la página se pone al día con lo que pasó mientras estaba bloqueada.
@@ -253,6 +273,7 @@ final class Core {
     }
 
     private func update() {
+        micControl()
         if shouldSend() {
             offWork?.cancel(); offWork = nil
             if !sending {
@@ -271,6 +292,23 @@ final class Core {
             }
             offWork = w
             q.asyncAfter(deadline: .now() + 0.22, execute: w)
+        }
+    }
+
+    /// El micrófono se abre solo cuando hay que transmitir y se cierra 4 s después
+    /// (así en Walkie no se corta entre frase y frase, y el indicador de iOS desaparece solo).
+    private func micControl() {
+        if shouldSend() {
+            micOffWork?.cancel(); micOffWork = nil
+            audio.setMic(true)
+        } else if micOffWork == nil {
+            let w = DispatchWorkItem { [weak self] in
+                guard let self = self else { return }
+                self.micOffWork = nil
+                if !self.shouldSend() { self.audio.setMic(false) }
+            }
+            micOffWork = w
+            q.asyncAfter(deadline: .now() + 4, execute: w)
         }
     }
 

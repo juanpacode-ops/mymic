@@ -191,8 +191,8 @@
       <div class="pick"><button id="fxBgPick">Elegir imagen de fondo</button><span id="fxBgInfo"></span></div>
     </div>
     <div class="set">
-      <div class="lbl"><div><b>Recorte</b><small>Preciso: bordes mucho mejores, usa un poco más la PC</small></div></div>
-      <div class="chips" id="fxSeg"><button data-v="fast">Rápido</button><button data-v="precise">Preciso</button></div>
+      <div class="lbl"><div><b>Recorte</b><small>iPhone ★: lo recorta el iPhone como Camo (app nativa). Preciso: lo recorta la PC</small></div></div>
+      <div class="chips" id="fxSeg"><button data-v="fast">Rápido</button><button data-v="precise">Preciso</button><button data-v="iphone">iPhone ★</button></div>
     </div>
     <div class="set">
       <div class="lbl"><b>Zoom</b><span id="fxZoomV"></span></div>
@@ -243,6 +243,10 @@ window.onNative = (m) => {
     case "sending": sending = !!m.on; if (!sending) $("wrap").style.setProperty("--lvl", 1); render(); break;
     case "conn": setSearch(m.state, m); break;
     case "camerr": videoErr = m.msg || ""; if (m.off) { camOn = false; } render(); break;
+    case "notice": {
+      const sp = document.querySelector("#hint span"); if (!sp) break;
+      sp.textContent = m.msg || ""; clearTimeout(window.__nt); window.__nt = setTimeout(render, 5000); break;
+    }
   }
 };
 function setSearch(state, m) {
