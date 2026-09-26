@@ -1,0 +1,40 @@
+name: Compilar MyMic para iPhone
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      - name: Generar proyecto
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Compilar
+        working-directory: ios
+        run: |
+          xcodebuild -project MyMic.xcodeproj -target MyMic -configuration Release \
+            -sdk iphoneos SYMROOT="$PWD/build" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+
+      - name: Armar MyMic.ipa
+        working-directory: ios
+        run: |
+          mkdir -p Payload
+          cp -R build/Release-iphoneos/MyMic.app Payload/
+          zip -qry MyMic.ipa Payload
+          ls -la MyMic.ipa
+
+      - name: Subir MyMic.ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyMic-ipa
+          path: ios/MyMic.ipa
