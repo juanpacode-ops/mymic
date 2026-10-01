@@ -23,6 +23,8 @@ final class AudioCapture {
     private var wanted = false              // alguien pidió el micrófono
     private var allowed = false
     private var keepAlive: AVAudioPlayer?
+    /// Solo se convierte y entrega audio cuando se está transmitiendo; en espera no se procesa nada (menos batería).
+    var transmitting = false
 
     init() {
         let nc = NotificationCenter.default
@@ -69,6 +71,15 @@ final class AudioCapture {
         }
     }
 
+    /// Igual que setMic pero YA (hay que llamarlo desde el hilo principal). Se usa justo antes de
+    /// que la app pase a segundo plano: iOS no deja prender el micrófono desde atrás, solo seguir usándolo.
+    func setMicNow(_ on: Bool) {
+        wanted = on
+        guard allowed else { return }
+        if on && !running { startMic() }
+        if !on && running { stopMic() }
+    }
+
     private func activateSession() {
         let s = AVAudioSession.sharedInstance()
         do {
@@ -105,7 +116,9 @@ final class AudioCapture {
     private func startMic() {
         guard !running else { return }
         let input = engine.inputNode
-        try? input.setVoiceProcessingEnabled(true)     // cancelación de eco y ruido, como en la app web
+        // Voz natural: el filtro de "llamada" de iOS aplasta la voz y empeora el dictado.
+        // (WhatsApp, Meet, etc. ya cancelan el eco por su cuenta en la PC.)
+        try? input.setVoiceProcessingEnabled(false)
         let inFmt = input.outputFormat(forBus: 0)
         guard inFmt.sampleRate > 0 else { onError?("El micrófono no está disponible"); return }
         converter = AVAudioConverter(from: inFmt, to: outFmt)
@@ -115,6 +128,7 @@ final class AudioCapture {
         do {
             try engine.start()
             running = true
+            keepAlive?.pause()          // el micrófono abierto ya mantiene viva la app
             onMicState?(true)
         } catch {
             input.removeTap(onBus: 0)
@@ -125,6 +139,7 @@ final class AudioCapture {
     }
 
     private func stopMic() {
+        startKeepAlive()                // primero el silencio, así la app no se duerme en el cambio
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         try? engine.inputNode.setVoiceProcessingEnabled(false)
@@ -147,6 +162,7 @@ final class AudioCapture {
     }
 
     private func process(_ buf: AVAudioPCMBuffer) {
+        guard transmitting else { if !pending.isEmpty { pending.removeAll() }; return }
         guard let conv = converter, buf.frameLength > 0 else { return }
         // nivel de volumen
         var level: Float = 0

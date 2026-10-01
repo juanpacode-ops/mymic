@@ -65,12 +65,21 @@ final class Core {
             self?.q.async { self?.becameActive() }
         }
         nc.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.q.async {
+            guard let self = self else { return }
+            // Automático / Siempre: el micrófono queda abierto EN ESPERA (sin mandar nada) antes de irse
+            // a segundo plano; si no, después de un rato bloqueado iOS no deja prenderlo cuando la PC lo pide.
+            let standby = self.q.sync { self.started && self.mode != "walkie" }
+            if standby {
+                let task = UIApplication.shared.beginBackgroundTask(expirationHandler: nil)
+                self.audio.setMicNow(true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { UIApplication.shared.endBackgroundTask(task) }
+            }
+            self.q.async { [weak self] in
                 self?.active = false
                 self?.pressed = false          // en Walkie, al bloquear se suelta el botón
                 self?.update()
             }
-            if let self = self, self.dimmed { UIScreen.main.brightness = self.savedBrightness }
+            if self.dimmed { UIScreen.main.brightness = self.savedBrightness }
         }
     }
 
@@ -189,7 +198,7 @@ final class Core {
     private func closed() {
         let was = connected
         connected = false
-        if sending { sending = false; page(["t": "sending", "on": false]) }
+        if sending { sending = false; audio.transmitting = false; page(["t": "sending", "on": false]) }
         if was { page(["t": "close"]) }
         reconnectWork?.cancel()
         let w = DispatchWorkItem { [weak self] in
@@ -278,6 +287,7 @@ final class Core {
             offWork?.cancel(); offWork = nil
             if !sending {
                 sending = true
+                audio.transmitting = true
                 link.sendText("{\"type\":\"talk\",\"on\":true}")
                 page(["t": "sending", "on": true])
             }
@@ -287,6 +297,7 @@ final class Core {
                 self.offWork = nil
                 if self.shouldSend() { return }
                 self.sending = false
+                self.audio.transmitting = false
                 self.link.sendText("{\"type\":\"talk\",\"on\":false}")
                 self.page(["t": "sending", "on": false])
             }
@@ -297,15 +308,18 @@ final class Core {
 
     /// El micrófono se abre solo cuando hay que transmitir y se cierra 4 s después
     /// (así en Walkie no se corta entre frase y frase, y el indicador de iOS desaparece solo).
+    /// En segundo plano (Automático o Siempre) el micrófono se mantiene abierto en espera.
+    private var standby: Bool { !active && started && mode != "walkie" }
+
     private func micControl() {
-        if shouldSend() {
+        if shouldSend() || standby {
             micOffWork?.cancel(); micOffWork = nil
             audio.setMic(true)
         } else if micOffWork == nil {
             let w = DispatchWorkItem { [weak self] in
                 guard let self = self else { return }
                 self.micOffWork = nil
-                if !self.shouldSend() { self.audio.setMic(false) }
+                if !self.shouldSend() && !self.standby { self.audio.setMic(false) }
             }
             micOffWork = w
             q.asyncAfter(deadline: .now() + 4, execute: w)

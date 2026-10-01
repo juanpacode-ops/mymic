@@ -258,7 +258,7 @@ final class Link: NSObject, URLSessionWebSocketDelegate {
 
     func sendAudio(_ d: Data) {
         guard let ch = aud ?? ctl else { return }
-        if pendingAudio > 4 { return }                 // si el Wi-Fi se atrasa, se descarta en vez de acumular
+        if pendingAudio > 25 { return }                // solo si el Wi-Fi se traba de verdad (>250 ms) se descarta
         pendingAudio += 1
         ch.send(.data(d)) { [weak self] _ in self?.queue.async { self?.pendingAudio -= 1 } }
     }

@@ -403,7 +403,7 @@ async function start() {
       const { pcm, lvl } = e.data;
       $("wrap").style.setProperty("--lvl", (1 + Math.min(lvl * 5, 0.45)).toFixed(3));
       const ch = (wsa && wsa.readyState === 1) ? wsa : ws;   // si el canal de audio no está, usa el principal
-      if (!ch || ch.readyState !== 1 || ch.bufferedAmount > 4096) return;   // si se atrasa, descarta en vez de acumular
+      if (!ch || ch.readyState !== 1 || ch.bufferedAmount > 24000) return;   // solo descarta si el Wi-Fi se traba de verdad (>250 ms)
       const b = new Uint8Array(pcm), out = new Uint8Array(b.length + 1);
       out[0] = 1; out.set(b, 1); ch.send(out);
     };
